@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+data/raw/
+data/processed/
+.pytest_cache/
+.vscode/
+
+# AI / planning docs — local only, never published.
+# These reference interview prep and job-search context and must stay out of a public repo.
+# Claude Code still reads CLAUDE.md from disk when ignored; git just won't track it.
+CLAUDE.md
+docs/
+.claude/
+
