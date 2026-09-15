@@ -10,7 +10,7 @@ ingestion pipeline.
 
 ```
 Airflow DAG (scheduled, retries)                     FastAPI service
-  async fetch ──► transform ──► Snowflake ──────────► REST API ──► client
+  async fetch ──► transform ──► BigQuery ───────────► REST API ──► client
    (Celestrak)    (parse/derive/                        (+ cache)
                    reconcile)
                   all under one docker compose
@@ -85,7 +85,7 @@ question this service should answer, the filtered view can't serve it.
 
 - [x] **Phase 1** — Verify sources; land raw data. Plain Python, no infra.
 - [ ] **Phase 2** — Parse GP element sets, derive orbital parameters, reconcile against
-      SATCAT, model and load the Snowflake schema.
+      SATCAT, model and load the BigQuery schema.
 - [ ] **Phase 3** — Concurrent async extraction (`asyncio` + `httpx`) across group
       endpoints, with backoff and partial-failure handling.
 - [ ] **Phase 4** — Containerize (`docker compose`).

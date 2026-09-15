@@ -1,7 +1,7 @@
 """Pull raw Celestrak data to disk. No parsing, no transforming -- land it and stop.
 
 The landing zone is the point. Every later phase (parsing, deriving orbital params,
-loading Snowflake) replays from these files instead of re-hitting the network, which
+loading BigQuery) replays from these files instead of re-hitting the network, which
 is both how a real pipeline is built and how we stay inside Celestrak's usage policy
 while iterating.
 
