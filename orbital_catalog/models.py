@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pydantic import BaseModel, Field, field_validator
 
 
 class GPRecord(BaseModel):
     """One row of a GP element-set CSV: one object's orbit at one moment (EPOCH)."""
-    # Input: whatever the CSV hands you. Output: a validated, typed object.
 
     name: str = Field(alias="OBJECT_NAME")
     norad_cat_id: int = Field(alias="NORAD_CAT_ID")
@@ -19,3 +18,24 @@ class GPRecord(BaseModel):
         if raw_time.tzinfo is None:
             return raw_time.replace(tzinfo=timezone.utc)
         return raw_time
+
+
+class SatcatRecord(BaseModel):
+    """One row of SATCAT: static metadata about one catalogued object"""
+
+    norad_cat_id: int = Field(alias="NORAD_CAT_ID")
+    object_name: str = Field(alias="OBJECT_NAME")
+    object_type: str = Field(alias="OBJECT_TYPE")
+    period: float | None = Field(alias="PERIOD")
+    apogee: float | None = Field(alias="APOGEE")
+    perigee: float | None = Field(alias="PERIGEE")
+    inclination: float | None = Field(alias="INCLINATION")
+    decay_date: date | None = Field(alias="DECAY_DATE")
+    orbit_center: str = Field(alias="ORBIT_CENTER")
+
+    @field_validator('period', 'apogee', 'perigee', 'inclination', 'decay_date', mode="before")
+    @classmethod
+    def normalize_nulls(cls, raw_str: str) -> str | None:
+        if raw_str == "":
+            return None
+        return raw_str
