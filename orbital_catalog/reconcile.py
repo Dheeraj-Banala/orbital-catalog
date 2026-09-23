@@ -83,8 +83,6 @@ def reconcile(gp: GPRecord, sat: SatcatRecord) -> Reconciliation:
 
 def latest_per_object(gp_records: list[GPRecord]) -> list[GPRecord]:
     """One element set per object: the one with the newest epoch."""
-    # YOU: paste your `best = {}` dedup loop from reconcile_report.py here,
-    #      then return list(best.values())
     best = {}
     for record in gp_records:
         current = best.get(record.norad_cat_id)

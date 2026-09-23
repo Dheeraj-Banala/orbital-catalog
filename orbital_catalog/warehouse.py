@@ -42,6 +42,16 @@ ELEMENT_SETS_SCHEMA = [
 ]
 
 
+CURRENT_CATALOG_SQL = """SELECT o.* EXCEPT (inclination_deg), o.inclination_deg AS satcat_inclination_deg, e.* EXCEPT (norad_cat_id, loaded_at)
+FROM `{objects}` AS o
+JOIN (
+  SELECT *
+  FROM `{element_sets}`
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY norad_cat_id ORDER BY epoch DESC) = 1
+) AS e
+USING (norad_cat_id)"""
+
+
 def table_id(name: str) -> str:
     """Full BigQuery ID for a table in this project's dataset."""
     project = os.environ["GCP_PROJECT"]
@@ -50,7 +60,7 @@ def table_id(name: str) -> str:
 
 
 def create_tables(client: bigquery.Client) -> None:
-    """Create both tables if they don't exist. Safe to re-run."""
+    """Create both tables and view if they don't exist. Safe to re-run."""
     objects_table_id = table_id("objects")
     table = bigquery.Table(objects_table_id, schema=OBJECTS_SCHEMA)
     client.create_table(table, exists_ok=True)
@@ -59,6 +69,12 @@ def create_tables(client: bigquery.Client) -> None:
     table = bigquery.Table(element_sets_table_id, schema=ELEMENT_SETS_SCHEMA)
     table.time_partitioning = bigquery.TimePartitioning(field="loaded_at")
     client.create_table(table, exists_ok=True)
+
+    view_id = table_id("current_catalog")
+    client.delete_table(view_id, not_found_ok=True)
+    view = bigquery.Table(view_id)
+    view.view_query = CURRENT_CATALOG_SQL.format(objects=table_id("objects"), element_sets=table_id("element_sets"))
+    client.create_table(view)
 
 
 def satcat_to_row(record: SatcatRecord, loaded_at: datetime) -> dict:
