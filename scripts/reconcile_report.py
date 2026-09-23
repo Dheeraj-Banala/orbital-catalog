@@ -1,4 +1,6 @@
 import sys
+import statistics
+from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -43,6 +45,39 @@ def main() -> int:
             print(result)
             break
 
+    groups = defaultdict(list)
+    for result in results:
+        groups[result.orbit_class].append(result)
+
+    print(f"{'class':<6} {'n':>5} {'median_km':>10} {'worst_km':>10} {'flagged':>8}")
+
+    for orbit_class, group in sorted(groups.items()):
+        flagged_count = sum(1 for r in group if r.flagged)
+        gaps = [abs(r.delta_perigee_km) for r in group if r.delta_perigee_km is not None]
+        if not gaps:
+            print(f"{orbit_class}: n/a")
+            continue
+        median = statistics.median(gaps)
+        worst = max(gaps)
+        print(f"{orbit_class:<6} {len(group):>5} {median:>10.2f} {worst:>10.2f} {flagged_count:>8}")
+
+    with_gap = [r for r in results if r.delta_perigee_km is not None]
+    worst_first = sorted(with_gap, key=lambda r: abs(r.delta_perigee_km), reverse=True)
+
+    print()
+    print(f"{'name':<28} {'class':<6} {'epoch':<16} {'derived':>9} {'satcat':>9} {'delta':>8}")
+    for r in worst_first[:10]:
+        print(
+            f"{r.name[:28]:<28} {r.orbit_class:<6} {r.epoch:%Y-%m-%d %H:%M} "
+            f"{r.derived_perigee_km:>9.1f} {r.satcat_perigee_km:>9.1f} {r.delta_perigee_km:>+8.2f}"
+        )
+
+    print()
+    print("Flagged:")
+    for r in results:
+        if r.flagged:
+            print(f"  {r.name} ({r.orbit_class})")
+    
     return 0
 
 
