@@ -1,6 +1,7 @@
 import os
-
+from datetime import datetime
 from google.cloud import bigquery
+from .models import SatcatRecord
 
 OBJECTS_SCHEMA = [
     bigquery.SchemaField("norad_cat_id", "INT64", mode="REQUIRED"),
@@ -57,3 +58,33 @@ def create_tables(client: bigquery.Client) -> None:
     table = bigquery.Table(element_sets_table_id, schema=ELEMENT_SETS_SCHEMA)
     table.time_partitioning = bigquery.TimePartitioning(field="loaded_at")
     client.create_table(table, exists_ok=True)
+
+
+def satcat_to_row(record: SatcatRecord, loaded_at: datetime) -> dict:
+    """One SatcatRecord -> one dict keyed by the objects table's column names."""
+    data = record.model_dump(mode="json")
+    return {
+        "norad_cat_id": data["norad_cat_id"],
+        "object_id": data["object_id"],
+        "object_name": data["object_name"],
+        "object_type": data["object_type"],
+        "owner": data["owner"],
+        "launch_date": data["launch_date"],
+        "decay_date": data["decay_date"],
+        "period_min": data["period"],
+        "apogee_km": data["apogee"],
+        "perigee_km": data["perigee"],
+        "inclination_deg": data["inclination"],
+        "orbit_center": data["orbit_center"],
+        "loaded_at": loaded_at.isoformat(),
+    }
+
+
+def load_objects(client: bigquery.Client, rows: list[dict]) -> None:
+    """Replace the objects table with these rows."""
+    job_config = bigquery.LoadJobConfig(
+        schema=OBJECTS_SCHEMA,
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+    )
+    job = client.load_table_from_json(rows, table_id("objects"), job_config=job_config)
+    job.result()
