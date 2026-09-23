@@ -79,3 +79,28 @@ def reconcile(gp: GPRecord, sat: SatcatRecord) -> Reconciliation:
         delta_apogee_km=delta_apogee,
         delta_perigee_km=delta_perigee,
     )
+
+
+def latest_per_object(gp_records: list[GPRecord]) -> list[GPRecord]:
+    """One element set per object: the one with the newest epoch."""
+    # YOU: paste your `best = {}` dedup loop from reconcile_report.py here,
+    #      then return list(best.values())
+    best = {}
+    for record in gp_records:
+        current = best.get(record.norad_cat_id)
+        if current is None or record.epoch > current.epoch:
+            best[record.norad_cat_id] = record
+    return list(best.values())
+
+
+def reconcile_all(
+    gp_records: list[GPRecord], satcat: dict[int, SatcatRecord]
+) -> list[tuple[GPRecord, Reconciliation]]:
+    """Reconcile each GP record against its SATCAT row. Objects with no SATCAT row are skipped."""
+    pairs = []
+    for gp in gp_records:
+        sat = satcat.get(gp.norad_cat_id)
+        if sat is None:
+            continue
+        pairs.append((gp, reconcile(gp, sat)))
+    return pairs

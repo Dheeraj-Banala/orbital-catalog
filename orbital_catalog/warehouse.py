@@ -1,7 +1,8 @@
 import os
 from datetime import datetime
 from google.cloud import bigquery
-from .models import SatcatRecord
+from .models import GPRecord, SatcatRecord
+from .reconcile import Reconciliation
 
 OBJECTS_SCHEMA = [
     bigquery.SchemaField("norad_cat_id", "INT64", mode="REQUIRED"),
@@ -87,4 +88,39 @@ def load_objects(client: bigquery.Client, rows: list[dict]) -> None:
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
     )
     job = client.load_table_from_json(rows, table_id("objects"), job_config=job_config)
+    job.result()
+
+
+def element_set_to_row(gp: GPRecord, rec: Reconciliation, loaded_at: datetime) -> dict:
+    """One element set + its reconciliation -> one dict keyed by element_sets column names."""
+    return {
+        "norad_cat_id": gp.norad_cat_id,
+        "epoch": gp.epoch.isoformat(),
+        "mean_motion": gp.mean_motion,
+        "eccentricity": gp.eccentricity,
+        "inclination_deg": gp.inclination,
+        "ra_of_asc_node_deg": gp.ra_of_asc_node,
+        "arg_of_pericenter_deg": gp.arg_of_pericenter,
+        "mean_anomaly_deg": gp.mean_anomaly,
+        "bstar": gp.bstar,
+        "derived_period_min": rec.derived_period_min,
+        "derived_apogee_km": rec.derived_apogee_km,
+        "derived_perigee_km": rec.derived_perigee_km,
+        "orbit_class": rec.orbit_class,
+        "delta_period_min": rec.delta_period_min,
+        "delta_apogee_km": rec.delta_apogee_km,
+        "delta_perigee_km": rec.delta_perigee_km,
+        "flagged": rec.flagged,
+        "loaded_at": loaded_at.isoformat(),
+    }
+
+
+def load_element_sets(client: bigquery.Client, rows: list[dict], loaded_at: datetime) -> None:
+    """Replace one day's partition of element_sets with these rows. Safe to re-run."""
+    partition = f"{table_id('element_sets')}${loaded_at:%Y%m%d}"
+    job_config = bigquery.LoadJobConfig(
+        schema=ELEMENT_SETS_SCHEMA,
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+    )
+    job = client.load_table_from_json(rows, partition, job_config=job_config)
     job.result()
