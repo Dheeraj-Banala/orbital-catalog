@@ -1,0 +1,8 @@
+.venv/
+data/
+.env
+.git/
+__pycache__/
+**/__pycache__/
+docs/
+CLAUDE.md

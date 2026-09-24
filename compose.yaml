@@ -1,0 +1,10 @@
+services:
+  pipeline:
+    build: .
+    image: orbital-catalog
+    env_file: .env
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /creds/adc.json
+    volumes:
+      - ./data:/app/data
+      - ${APPDATA}/gcloud/application_default_credentials.json:/creds/adc.json:ro
