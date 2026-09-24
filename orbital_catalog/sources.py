@@ -44,19 +44,15 @@ def gp_group(group: str) -> Source:
     )
 
 
-# Start deliberately small. These are stable, modest-sized groups -- big enough to be
-# real data, small enough that iterating on the parser is not abusive.
-#
-# NOT here on purpose: GROUP=active and GROUP=starlink. Celestrak enforces
-# one-download-per-update on exactly those two and returns 403 on a repeat pull
-# (see README "Playing nice"). They get added once caching is proven, not during
-# the phase where we are re-running the script every few minutes.
+# `starlink` is deliberately absent: it's a subset of `active`, so pulling it would
+# re-download the same satellites from a strictly enforced endpoint.
 PHASE1_GP_GROUPS = [
     "stations",  # ISS, CSS -- tiny, good smoke test
     "gps-ops",   # ~30 objects, MEO, clean
     "visual",    # ~150 brightest, mixed orbits
     "weather",   # ~70, sun-synchronous LEO
     "geo",       # geostationary belt -- very different orbit shape from the others
+    "active",    # ~16.6K active satellites (~11K Starlink) Strictly enforced: one pull per day.
 ]
 
 # The FULL catalog -- every tracked object, ~31.6K of them: live payloads, dead ones,

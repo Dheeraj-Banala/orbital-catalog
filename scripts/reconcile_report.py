@@ -7,12 +7,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from orbital_catalog.reconcile import latest_per_object, reconcile_all
 from orbital_catalog.load import load_gp_file, load_satcat_file
-from orbital_catalog.fetch import RAW_DIR
+from orbital_catalog.fetch import latest_run_dir
 from orbital_catalog.sources import PHASE1_GP_GROUPS, gp_group
 
 
 def main() -> int:
-    run = RAW_DIR / "2026-07-26"
+    run = latest_run_dir()
     satcat = load_satcat_file(run / "satcat_full.csv")
 
     gp_records = []
@@ -63,11 +63,9 @@ def main() -> int:
         )
 
     print()
-    print("Flagged:")
-    for r in results:
-        if r.flagged:
-            print(f"  {r.name} ({r.orbit_class})")
-    
+    flagged_total = sum(1 for r in results if r.flagged)
+    print(f"Flagged: {flagged_total} of {len(results)}")
+
     return 0
 
 

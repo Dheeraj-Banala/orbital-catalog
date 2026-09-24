@@ -55,6 +55,11 @@ def run_dir(run_date: dt.date | None = None) -> Path:
     return RAW_DIR / run_date.isoformat()
 
 
+def latest_run_dir() -> Path:
+    """The most recent landed run. Folder names are ISO dates, so they sort chronologically."""
+    return max(p for p in RAW_DIR.iterdir() if p.is_dir())
+
+
 async def fetch_one(
     client: httpx.AsyncClient,
     source: Source,

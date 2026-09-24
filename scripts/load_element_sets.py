@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from dotenv import load_dotenv
 from google.cloud import bigquery
 
-from orbital_catalog.fetch import RAW_DIR
+from orbital_catalog.fetch import latest_run_dir
 from orbital_catalog.load import load_gp_file, load_satcat_file
 from orbital_catalog.reconcile import latest_per_object, reconcile_all
 from orbital_catalog.sources import PHASE1_GP_GROUPS, gp_group
@@ -19,7 +19,7 @@ load_dotenv()
 
 def main() -> int:
     loaded_at = datetime.now(timezone.utc)
-    run = RAW_DIR / "2026-07-26"
+    run = latest_run_dir()
 
     satcat = load_satcat_file(run / "satcat_full.csv")
     gp_records = []

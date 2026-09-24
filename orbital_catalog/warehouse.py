@@ -49,7 +49,8 @@ JOIN (
   FROM `{element_sets}`
   QUALIFY ROW_NUMBER() OVER (PARTITION BY norad_cat_id ORDER BY epoch DESC) = 1
 ) AS e
-USING (norad_cat_id)"""
+USING (norad_cat_id)
+WHERE o.decay_date IS NULL"""
 
 
 def table_id(name: str) -> str:
