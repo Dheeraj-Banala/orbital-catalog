@@ -9,6 +9,7 @@ that is what the landing zone is for.
 
 import argparse
 import sys
+import asyncio
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -30,7 +31,7 @@ def main() -> int:
     print(f"Landing {len(sources)} sources into {run_dir()}")
 
     try:
-        landed = fetch_all(sources, force=args.force)
+        landed = asyncio.run(fetch_all(sources, force=args.force))
     except SourceUnavailable as exc:
         print(f"\nSTOPPED: {exc}", file=sys.stderr)
         return 1

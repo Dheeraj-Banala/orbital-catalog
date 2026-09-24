@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import datetime as dt
 import os
+import asyncio
 from pathlib import Path
 
 import httpx
@@ -40,7 +41,7 @@ def user_agent() -> str:
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 RAW_DIR = REPO_ROOT / "data" / "raw"
-
+MAX_CONCURRENT = 3
 TIMEOUT = httpx.Timeout(30.0)
 
 
@@ -54,8 +55,8 @@ def run_dir(run_date: dt.date | None = None) -> Path:
     return RAW_DIR / run_date.isoformat()
 
 
-def fetch_one(
-    client: httpx.Client,
+async def fetch_one(
+    client: httpx.AsyncClient,
     source: Source,
     dest_dir: Path,
     force: bool = False,
@@ -66,7 +67,7 @@ def fetch_one(
     if dest.exists() and not force:
         return dest, False
 
-    response = client.get(source.url, params=source.params)
+    response = await client.get(source.url, params=source.params)
 
     if response.status_code != 200:
         raise SourceUnavailable(
@@ -89,26 +90,37 @@ def fetch_one(
     return dest, True
 
 
-def fetch_all(sources: list[Source], force: bool = False) -> list[Path]:
-    """Land every source, sequentially.
+async def fetch_all(sources: list[Source], force: bool = False) -> list[Path]:
+    """Land every source concurrently, at most MAX_CONCURRENT at a time.
 
-    Sequential on purpose: concurrency is Phase 3, and doing it here would mean
-    writing it before there is anything to measure it against. httpx (not requests)
-    so that phase is a Client -> AsyncClient swap rather than a rewrite.
+    TaskGroup, not gather: if any source fails, the rest are cancelled -- Celestrak's
+    policy is stop on any non-200. Files that finished are kept; the next run's cache
+    check skips them, so a rerun resumes rather than starting over.
     """
     dest_dir = run_dir()
-    landed: list[Path] = []
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
-    with httpx.Client(
+    async def fetch_limited(source: Source) -> tuple[Path, bool]:
+        async with semaphore:
+            return await fetch_one(client, source, dest_dir, force)
+
+    async with httpx.AsyncClient(
         headers={"User-Agent": user_agent()},
         timeout=TIMEOUT,
-        follow_redirects=False,  # policy: a 301 is a signal to fix the URL, not to chase it
+        follow_redirects=False,
     ) as client:
-        for source in sources:
-            path, downloaded = fetch_one(client, source, dest_dir, force=force)
-            size = path.stat().st_size
-            status = "downloaded" if downloaded else "cached"
-            print(f"  {source.name:<24} {status:<11} {size:>9,} bytes")
-            landed.append(path)
+        try:
+            async with asyncio.TaskGroup() as tg:
+                tasks = [tg.create_task(fetch_limited(s)) for s in sources]
+        except ExceptionGroup as eg:
+            # TaskGroup wraps failures in a group; re-raise the first so callers see the
+            # same SourceUnavailable (or httpx error) the sequential version raised.
+            raise eg.exceptions[0] from None
 
+    landed: list[Path] = []
+    for source, task in zip(sources, tasks):
+        path, downloaded = task.result()
+        status = "downloaded" if downloaded else "cached"
+        print(f"  {source.name:<24} {status:<11} {path.stat().st_size:>9,} bytes")
+        landed.append(path)
     return landed
