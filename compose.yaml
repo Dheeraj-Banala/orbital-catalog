@@ -7,4 +7,4 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: /creds/adc.json
     volumes:
       - ./data:/app/data
-      - ${APPDATA}/gcloud/application_default_credentials.json:/creds/adc.json:ro
+      - ${GCLOUD_ADC}:/creds/adc.json:ro
