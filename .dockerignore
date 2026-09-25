@@ -6,3 +6,5 @@ __pycache__/
 **/__pycache__/
 docs/
 CLAUDE.md
+logs/
+config/

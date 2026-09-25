@@ -7,6 +7,8 @@ data/raw/
 data/processed/
 .pytest_cache/
 .vscode/
+config/airflow.cfg
+logs/
 
 # AI / planning docs — local only, never published.
 # These reference interview prep and job-search context and must stay out of a public repo.
