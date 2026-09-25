@@ -1,7 +1,7 @@
 import pytest
 
+from tests.factories import make_gp
 from orbital_catalog.reconcile import _delta, _exceeds, latest_per_object
-from orbital_catalog.models import GPRecord
 
 
 def test_delta_standard():
@@ -28,14 +28,6 @@ def test_delta_zero():
 )
 def test_exceeds(delta, published, expected):
     assert _exceeds(delta, published) is expected
-
-
-def make_gp(norad_id: int, epoch: str) -> GPRecord:
-    return GPRecord.model_validate({
-        "OBJECT_NAME": "TEST", "NORAD_CAT_ID": norad_id, "EPOCH": epoch,
-        "MEAN_MOTION": 15.5, "ECCENTRICITY": 0.001, "INCLINATION": 51.6,
-        "RA_OF_ASC_NODE": 0, "ARG_OF_PERICENTER": 0, "MEAN_ANOMALY": 0, "BSTAR": 0,
-    })
 
 
 @pytest.mark.parametrize("order", ["older_first", "newer_first"])
