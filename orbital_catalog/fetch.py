@@ -95,14 +95,15 @@ async def fetch_one(
     return dest, True
 
 
-async def fetch_all(sources: list[Source], force: bool = False) -> list[Path]:
+async def fetch_all(sources: list[Source], force: bool = False, run_date: dt.date | None = None) -> list[Path]:
     """Land every source concurrently, at most MAX_CONCURRENT at a time.
 
     TaskGroup, not gather: if any source fails, the rest are cancelled -- Celestrak's
     policy is stop on any non-200. Files that finished are kept; the next run's cache
     check skips them, so a rerun resumes rather than starting over.
+    run_date picks landing folder, defaulting to today (UTC).
     """
-    dest_dir = run_dir()
+    dest_dir = run_dir(run_date)
     semaphore = asyncio.Semaphore(MAX_CONCURRENT)
 
     async def fetch_limited(source: Source) -> tuple[Path, bool]:
