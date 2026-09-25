@@ -10,9 +10,7 @@ data/processed/
 config/airflow.cfg
 logs/
 
-# AI / planning docs — local only, never published.
-# These reference interview prep and job-search context and must stay out of a public repo.
-# Claude Code still reads CLAUDE.md from disk when ignored; git just won't track it.
+# Local notes, not part of the project.
 CLAUDE.md
 docs/
 .claude/
