@@ -3,7 +3,7 @@
     fetch ──► create_tables ──┬──► load_objects
                               └──► load_element_sets
 """
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from airflow.sdk import dag, get_current_context, task
 
@@ -35,12 +35,17 @@ def orbital_catalog_daily():
     def fetch() -> str:
         import asyncio
         from airflow.sdk.exceptions import AirflowFailException
-        from orbital_catalog.fetch import SourceUnavailable, fetch_all
+        from orbital_catalog.fetch import SourceUnavailable, fetch_all, run_dir, can_fetch
         from orbital_catalog.sources import phase1_sources
 
         run_date = _run_time().date()
+        today = datetime.now(timezone.utc).date()
+        sources = phase1_sources()
+        all_landed = all((run_dir(run_date) / source.filename).exists() for source in sources)
+        if not can_fetch(run_date, today, all_landed):
+            raise AirflowFailException(f"CelesTrak only serves current data and {run_date} never fully landed.")
         try:
-            asyncio.run(fetch_all(phase1_sources(), run_date=run_date))
+            asyncio.run(fetch_all(sources, run_date=run_date))
         except SourceUnavailable as exc:
             # Celestrak policy: any non-200 means stop -- fail now, skip the retries.
             raise AirflowFailException(str(exc)) from exc

@@ -60,6 +60,13 @@ def latest_run_dir() -> Path:
     return max(p for p in RAW_DIR.iterdir() if p.is_dir())
 
 
+def can_fetch(run_date: dt.date, today: dt.date, all_landed: bool) -> bool:
+    """CelesTrak only serves current data, so a past date is only safe if nothing needs downloading"""
+    if run_date == today:
+        return True
+    return all_landed
+
+
 async def fetch_one(
     client: httpx.AsyncClient,
     source: Source,

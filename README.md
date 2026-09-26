@@ -124,9 +124,11 @@ so you can see how an orbit changed over time.
 
 **Reruns are safe.** `loaded_at` is the run's logical date from Airflow, not the wall-clock time, and each
 load writes to that day's partition (`element_sets$YYYYMMDD`) with `WRITE_TRUNCATE`. Rerunning Tuesday's run
-on Thursday replaces Tuesday's rows and leaves every other day alone. BigQuery doesn't enforce unique keys,
-so this is how duplicates are prevented. It uses load jobs only, which BigQuery doesn't charge for, rather
-than streaming inserts or `MERGE`.
+on Thursday replaces Tuesday's rows, from Tuesday's landed files, and leaves every other day alone. BigQuery
+doesn't enforce unique keys, so this is how duplicates are prevented. It uses load jobs only, which BigQuery
+doesn't charge for, rather than streaming inserts or `MERGE`. If Tuesday's files never fully landed, the run
+fails instead: CelesTrak only serves current data, so fetching on Thursday would file Thursday's data under
+Tuesday.
 
 ## Orchestration
 
