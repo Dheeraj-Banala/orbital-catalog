@@ -1,3 +1,7 @@
+from datetime import datetime, timezone
+
+from orbital_catalog.catalog import CatalogObject
+from orbital_catalog.derive import Orbit
 from orbital_catalog.models import GPRecord
 
 
@@ -28,3 +32,16 @@ def make_gp(norad_id: int, epoch: str) -> GPRecord:
         "MEAN_MOTION": 15.5, "ECCENTRICITY": 0.001, "INCLINATION": 51.6,
         "RA_OF_ASC_NODE": 0, "ARG_OF_PERICENTER": 0, "MEAN_ANOMALY": 0, "BSTAR": 0,
     })
+
+
+def make_catalog_object(**overrides) -> CatalogObject:
+    """A valid CatalogObject (an ISS-like LEO payload). Override only the fields a test cares about."""
+    fields = {
+        "norad_cat_id": 25544, "object_id": "1998-067A", "object_name": "ISS (ZARYA)",
+        "object_type": "PAY", "owner": "ISS", "launch_date": None, "orbit_class": Orbit.LEO,
+        "epoch": datetime(2026, 9, 25, tzinfo=timezone.utc), "inclination_deg": 51.6,
+        "eccentricity": 0.0005, "period_min": 92.9, "apogee_km": 422.0, "perigee_km": 416.0,
+        "satcat_apogee_km": 422.0, "satcat_perigee_km": 416.0, "flagged": False,
+    }
+    fields.update(overrides)
+    return CatalogObject(**fields)

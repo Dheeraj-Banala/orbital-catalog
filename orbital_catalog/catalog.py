@@ -69,7 +69,6 @@ class CatalogCache:
 
     def objects(self) -> dict[int, CatalogObject]:
         """The current catalog, refreshing first if it's stale."""
-        # YOU: if never loaded, or older than max_age -> call self.refresh()
         if self.loaded_at is None or datetime.now(timezone.utc) - self.loaded_at > self._max_age:
             self.refresh()
         return self._objects
