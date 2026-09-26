@@ -3,7 +3,8 @@
 A data pipeline that keeps a queryable catalog of objects in Earth orbit: working satellites, dead ones,
 spent rocket bodies and debris. It pulls public data from CelesTrak every day, derives each object's orbit
 independently, checks those numbers against the published catalog, and loads the result into BigQuery.
-The whole thing runs on a schedule under Apache Airflow in Docker.
+The whole thing runs on a schedule under Apache Airflow in Docker, and a small FastAPI service serves the
+current catalog over HTTP.
 
 ## What's in it
 
@@ -39,6 +40,11 @@ It does not compute where an object is at a given moment.
   |                                  BigQuery: objects, element_sets,         |
   |                                            current_catalog (view)         |
   +---------------------------------------------------------------------------+
+                                                    |
+                                                    |  read into memory, reloaded every 6 hours
+                                                    v
+                                   FastAPI service (docker compose)
+                                   /objects  /objects/{id}  /stats  /health
 ```
 
 1. **fetch** downloads 6 GP element-set groups and the full SATCAT file concurrently, at most 3 requests
@@ -145,6 +151,53 @@ Celery executor with Redis and a separate worker, which is built for spreading t
 This project runs on one machine with a handful of tasks a day, so it uses `LocalExecutor` and drops Redis,
 the worker and Flower.
 
+## API
+
+`orbital_catalog/api.py` serves `current_catalog`: one record per object still in orbit, with its identity
+from SATCAT, its newest element set, our derived orbit next to SATCAT's published one, and the
+reconciliation flag.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /objects` | A page of objects matching the filters below, sorted by NORAD ID, as `{total, items}`. `total` counts every match, not just the page. |
+| `GET /objects/{norad_cat_id}` | One object, or 404. |
+| `GET /stats` | Object counts by type and by orbit class. |
+| `GET /health` | How many objects are loaded and when they were loaded. |
+
+`/objects` filters, all optional and combined with AND:
+
+- `orbit_class`: `LEO`, `MEO`, `HEO`, `GEO` or `OTHER`. Anything else is rejected with a 422.
+- `object_type`: `PAY`, `R/B`, `DEB` or `UNK`.
+- `owner`: SATCAT's owner code, exact match (`US`, `PRC`, `CIS` and so on).
+- `name`: case-insensitive substring, so `starlink` matches `STARLINK-1007`.
+- `flagged`: `true` or `false`. Objects with nothing to compare against (`flagged` is `NULL`) match neither.
+- `min_perigee_km`, `max_apogee_km`: altitude bounds on the derived orbit.
+- `limit` (1 to 1000, default 100) and `offset` for paging.
+
+For example, the geostationary satellites whose derived orbit disagrees with SATCAT:
+
+```bash
+curl "http://localhost:8000/objects?orbit_class=GEO&flagged=true"
+```
+
+On the 2026-09-25 data that returns two objects, USA 270 and EXPRESS-AMU3.
+
+**Serving from memory, not from BigQuery.** The warehouse is the source of truth, but querying it on every
+request would make each request a BigQuery job: about a second of latency and a billed scan, to return data
+that changes once a day. Instead the API loads `current_catalog` into a dictionary keyed by NORAD ID (one
+query, about 16,700 rows) and answers from that.
+
+- The copy is reloaded when it's more than 6 hours old. The reload happens on the first request after that,
+  and that request waits for the query.
+- A reload builds the new dictionary completely and then swaps it in with a single assignment, so a request
+  never sees a half-loaded catalog.
+- If a reload fails, the API logs a warning and keeps serving the copy it already has. It only returns an
+  error if it has never loaded at all.
+- Nothing connects to BigQuery at import time. The cache is created on the first request, which is also what
+  lets the tests swap in a fake catalog.
+
+The tradeoff is freshness: after the daily load, the API can serve the previous day's data for up to 6 hours.
+
 ## Running it
 
 **Prerequisites:** Python 3.11, Docker Desktop, the Google Cloud CLI, and a GCP project with BigQuery
@@ -189,6 +242,19 @@ docker compose run --rm pipeline python scripts/load_element_sets.py
 `scripts/reconcile_report.py` prints the per-class reconciliation summary and the largest disagreements
 without touching BigQuery.
 
+The API is the `api` service in `compose.yaml`, built from the same image as `pipeline`:
+
+```bash
+docker compose up api
+```
+
+Interactive docs are at http://localhost:8000/docs. The API reads `current_catalog`, so the pipeline has to
+have run at least once. To run it without Docker:
+
+```bash
+python -m uvicorn orbital_catalog.api:app --env-file .env
+```
+
 ### Credentials
 
 Nothing secret goes into an image. `.dockerignore` keeps `.env`, `data/` and the virtualenv out of the build.
@@ -202,11 +268,16 @@ pip install -r requirements.txt -r requirements-test.txt
 pytest
 ```
 
-24 tests over the pure functions: the derivations against SATCAT's published values, one classifier case per
-orbit class, the reconciliation rules (including a regression test for treating a published value of `0.0`
-as missing), dedup in both input orders, the model validation rules, and a check that each row converter's
-keys match its BigQuery schema column for column. A column added to a schema but not to its converter
-would otherwise load as silent `NULL`s.
+37 tests. Most cover the pure functions: the derivations against SATCAT's published values, one classifier
+case per orbit class, the reconciliation rules (including a regression test for treating a published value
+of `0.0` as missing), dedup in both input orders, the model validation rules, and a check that each row
+converter's keys match its BigQuery schema column for column. A column added to a schema but not to its
+converter would otherwise load as silent `NULL`s. The rule that refuses to fetch for a past date is tested
+the same way, as a function of the run date, today's date and whether the files landed.
+
+The API tests go through HTTP with FastAPI's `TestClient`, but replace the cache with a three-object fake
+catalog using FastAPI's dependency overrides. They cover lookup and 404, each filter (including the
+three-state `flagged`), paging, validation errors and the stats counts.
 
 The tests never touch the network or BigQuery, so GitHub Actions runs them on every push with no credentials.
 
@@ -231,7 +302,8 @@ The tests never touch the network or BigQuery, so GitHub Actions runs them on ev
 - **One Python version everywhere.** The virtualenv, the pipeline image and the Airflow image all use 3.11.
   Project dependencies are installed into the Airflow image together with the pinned Airflow version, and
   `pip check` is run after every change. Pinning `httpx` too old once broke packages that ship with Airflow
-  without failing the build.
+  without failing the build. FastAPI and uvicorn are pinned to the versions the Airflow image already ships,
+  since Airflow's own API server is built on them.
 
 ## Limitations
 
@@ -240,3 +312,4 @@ The tests never touch the network or BigQuery, so GitHub Actions runs them on ev
 - Orbital elements are pulled for active satellites and a few curated groups (about 16,700 objects), not
   every tracked object. Debris is in the catalog but mostly has no element set here.
 - The daily schedule only runs while the machine and Docker are up. Missed days are not backfilled.
+- The API is read-only and has no authentication or rate limiting. It's meant to run locally.

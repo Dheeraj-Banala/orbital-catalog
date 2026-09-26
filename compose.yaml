@@ -8,3 +8,14 @@ services:
     volumes:
       - ./data:/app/data
       - ${GCLOUD_ADC}:/creds/adc.json:ro
+  api:
+    build: .
+    image: orbital-catalog
+    env_file: .env
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /creds/adc.json
+    volumes:
+      - ${GCLOUD_ADC}:/creds/adc.json:ro
+    command: uvicorn orbital_catalog.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
